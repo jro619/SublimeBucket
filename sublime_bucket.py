@@ -48,7 +48,7 @@ class CommandBase():
         return os.path.relpath(self.view.file_name(), self.get_directory())
 
     def get_line_ranges(self):
-        """Get the list of currently selected line ranges, in start:end format.
+        """Get the list of currently selected line ranges, in start-end format.
         """
         ranges = []
 
@@ -61,7 +61,7 @@ class CommandBase():
             if first_line == last_line:
                 ranges.append(str(first_line))
             else:
-                ranges.append('%d:%d' % (first_line, last_line))
+                ranges.append('%d-%d' % (first_line, last_line))
 
         return ranges
 
@@ -88,14 +88,16 @@ class OpenInBitbucketCommand(CommandBase, sublime_plugin.TextCommand):
 
         try:
             remote = backend.find_bitbucket_remote()
-            url = '%(host)s/%(repo)s/src/%(branch)s/%(path)s#%(hash)s' % {
-                'host': 'https://' + remote.host,
-                'repo': remote.repo,
-                'branch': backend.find_current_revision(),
-                'path': self.get_file_path(),
-                'hash': '%s-%s' % (os.path.basename(self.view.file_name()),
-                                   ','.join(self.get_line_ranges()))
-            }
+
+            url = 'https://{host}/projects/{project}/repos/{repo}/browse/{path}?at={sha}#{line_ranges}'.format(
+                host=remote.host,
+                project=remote.project,
+                repo=remote.repo,
+                path=self.get_file_path(),
+                sha=backend.find_current_revision(),
+                line_ranges=','.join(self.get_line_ranges())
+            )
+
             webbrowser.open(url)
         except SublimeBucketError as e:
             sublime.error_message(str(e))
@@ -192,12 +194,18 @@ class Remote():
     Initialized with an _sre.SRE_MATCH object w/ `string` attribute referring
     to the full remote string.
     """
-    def __init__(self, remote_match):
-        # For both Git and Hg the remote name is the first token in the string.
-        self.name = re.split(r'\s+', remote_match.string, maxsplit=1)[0]
+    def __init__(self, name, host, project, repo):
+        self.name = name
+        self.host = host
+        self.project = project
+        self.repo = repo
 
-        self.host = remote_match.group('host')
-        self.repo = re.sub(r'\.git$', '', remote_match.group('repo'))
+        # TODO: REMOVE
+        # For both Git and Hg the remote name is the first token in the string.
+        # self.name = re.split(r'\s+', remote_match.string, maxsplit=1)[0]
+
+        # self.host = remote_match.group('host')
+        # self.repo = re.sub(r'\.git$', '', remote_match.group('repo'))
 
 
 class BackendBase():
@@ -214,16 +222,27 @@ class BackendBase():
         """
         remotes = self.get_remote_list()
 
-        for host in self.bitbucket_hosts:
-            bitbucket_pattern = (r'(?P<host>%s)[:/]'
-                                 r'(?P<repo>[\w\.\-]+/[\w\.\-]+)') % host
-            for remote in remotes:
-                remote_match = re.search(bitbucket_pattern, remote)
-                if remote_match:
-                    return Remote(remote_match)
+        if not remotes:
+            raise SublimeBucketError('Unable to find any remotes')
 
-        raise SublimeBucketError('Unable to find a remote matching: %r' %
-                                 self.bitbucket_hosts)
+        ssh_url_regex = (
+            r'ssh://git@'
+            r'(?P<host>[-_.\w]+)(?::\d+)?/'
+            r'(?P<project>[-_\w]+)/'
+            r'(?P<repo>[-_\w]+)'
+            r'.git'
+        )
+        for remote in remotes:
+            remote_name, ssh_url, *rest = re.split(r'\s+', remote)
+
+            match = re.search(ssh_url_regex, ssh_url)
+            if match:
+                host = match.group('host')
+                project = match.group('project')
+                repo = match.group('repo')
+                return Remote(remote_name, host, project, repo)
+            else:
+                raise SublimeBucketError('Unable to match ssh url: {}'.format(ssh_url))
 
     def find_current_revision(self):
         """Get the hash of the commit/changeset that's currently checked out.
