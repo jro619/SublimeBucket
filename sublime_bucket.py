@@ -105,6 +105,28 @@ class OpenInBitbucketCommand(CommandBase, sublime_plugin.TextCommand):
             traceback.print_exc()
             sublime.error_message('Encountered an unexpected error')
 
+class OpenInBitbucketDevCommand(CommandBase, sublime_plugin.TextCommand):
+    def run(self, edit):
+        backend = self.get_backend()
+
+        try:
+            remote = backend.find_bitbucket_remote()
+
+            url = 'https://{host}/projects/{project}/repos/{repo}/browse/{path}#{line_ranges}'.format(
+                host=remote.host,
+                project=remote.project,
+                repo=remote.repo,
+                path=self.get_file_path(),
+                line_ranges=','.join(self.get_line_ranges())
+            )
+
+            webbrowser.open(url)
+        except SublimeBucketError as e:
+            sublime.error_message(str(e))
+        except Exception:
+            traceback.print_exc()
+            sublime.error_message('Encountered an unexpected error')
+
 
 class OpenBitbucketChangesetCommand(CommandBase, sublime_plugin.TextCommand):
     def run(self, edit):

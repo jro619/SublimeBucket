@@ -9,6 +9,11 @@
         "command": "open_in_bitbucket"
       },
       {
+        "caption": "Open in Bitbucket (Dev)",
+        "id": "bitbucket-open-file-dev",
+        "command": "open_in_bitbucket_dev"
+      },
+      {
         "caption": "Open Bitbucket Changeset",
         "id": "bitbucket-open-changeset",
         "command": "open_bitbucket_changeset"

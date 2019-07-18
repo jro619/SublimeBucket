@@ -4,6 +4,10 @@
     "command": "open_in_bitbucket"
   },
   {
+    "caption": "Bitbucket: Open (dev)",
+    "command": "open_in_bitbucket_dev"
+  },
+  {
     "caption": "Bitbucket: Open Changeset",
     "command": "open_bitbucket_changeset"
   },
